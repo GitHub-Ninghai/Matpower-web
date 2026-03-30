@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # 后端服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: matpower-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ${MATPOWER_PATH:-E:/matpower}:/matpower:ro
+      - backend-data:/app/data
+    environment:
+      - MATPOWER_PATH=/matpower
+      - MATPOWER_DATA_PATH=/matpower/data
+      - HOST=0.0.0.0
+      - PORT=8000
+    depends_on:
+      - octave
+    networks:
+      - matpower-net
+    restart: unless-stopped
+
+  # Octave 服务 (使用预编译镜像)
+  octave:
+    image: gnuoctave/octave:latest
+    container_name: matpower-octave
+    volumes:
+      - ${MATPOWER_PATH:-E:/matpower}:/matpower:ro
+    networks:
+      - matpower-net
+    restart: unless-stopped
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: matpower-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - matpower-net
+    restart: unless-stopped
+
+  # Nginx 反向代理 (生产环境)
+  nginx:
+    image: nginx:alpine
+    container_name: matpower-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - matpower-net
+    restart: unless-stopped
+    profiles:
+      - production
+
+volumes:
+  backend-data:
+
+networks:
+  matpower-net:
+    driver: bridge
