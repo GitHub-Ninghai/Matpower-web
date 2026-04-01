@@ -2,45 +2,54 @@
   <div class="system-summary">
     <div class="card-title">系统概要</div>
     <div v-if="summary" class="summary-grid">
-      <div class="summary-item">
-        <div class="item-label">总发电</div>
-        <div class="item-value value-display">{{ displayTotalGen }}</div>
-        <div class="item-unit">MW</div>
-      </div>
-      <div class="summary-item">
-        <div class="item-label">总负荷</div>
-        <div class="item-value value-display">{{ displayTotalLoad }}</div>
-        <div class="item-unit">MW</div>
-      </div>
-      <div class="summary-item">
-        <div class="item-label">总损耗</div>
-        <div class="item-value value-display">{{ displayTotalLoss }}</div>
-        <div class="item-unit">MW</div>
-      </div>
-      <div class="summary-item">
-        <div class="item-label">最高电压</div>
-        <div class="item-value value-display value-warning">
-          {{ displayMaxVoltage }}
+      <div class="summary-item summary-gen">
+        <div class="item-icon">&#9889;</div>
+        <div class="item-data">
+          <div class="item-label">总发电</div>
+          <div class="item-value value-display">{{ displayTotalGen }} <span class="item-unit">MW</span></div>
         </div>
-        <div class="item-unit">Bus {{ displayMaxVoltageBus }}</div>
       </div>
-      <div class="summary-item">
-        <div class="item-label">最低电压</div>
-        <div class="item-value value-display value-normal">
-          {{ displayMinVoltage }}
+      <div class="summary-item summary-load">
+        <div class="item-icon">&#9881;</div>
+        <div class="item-data">
+          <div class="item-label">总负荷</div>
+          <div class="item-value value-display">{{ displayTotalLoad }} <span class="item-unit">MW</span></div>
         </div>
-        <div class="item-unit">Bus {{ displayMinVoltageBus }}</div>
+      </div>
+      <div class="summary-item summary-loss">
+        <div class="item-icon">&#128256;</div>
+        <div class="item-data">
+          <div class="item-label">总损耗</div>
+          <div class="item-value value-display">{{ displayTotalLoss }} <span class="item-unit">MW</span></div>
+        </div>
       </div>
       <div class="summary-item">
-        <div class="item-label">运行成本</div>
-        <div class="item-value value-display">$</div>
-        <div class="item-unit">{{ displayTotalCost }}</div>
+        <div class="item-data">
+          <div class="item-label">最高电压</div>
+          <div class="item-value value-display value-warning">{{ displayMaxVoltage }}</div>
+          <div class="item-sub">Bus {{ displayMaxVoltageBus }}</div>
+        </div>
       </div>
-      <div class="summary-item status-item">
-        <div class="item-label">收敛状态</div>
-        <div class="status-indicator">
-          <span class="status-dot" :class="convergenceClass"></span>
-          <span>{{ convergenceText }}</span>
+      <div class="summary-item">
+        <div class="item-data">
+          <div class="item-label">最低电压</div>
+          <div class="item-value value-display value-normal">{{ displayMinVoltage }}</div>
+          <div class="item-sub">Bus {{ displayMinVoltageBus }}</div>
+        </div>
+      </div>
+      <div class="summary-item">
+        <div class="item-data">
+          <div class="item-label">运行成本</div>
+          <div class="item-value value-display">${{ displayTotalCost }}</div>
+        </div>
+      </div>
+      <div class="summary-item summary-status">
+        <div class="item-data">
+          <div class="item-label">收敛状态</div>
+          <div class="status-indicator">
+            <span class="status-dot" :class="convergenceClass"></span>
+            <span class="status-text">{{ convergenceText }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -73,40 +82,21 @@ const displayTotalLoss = computed(() => {
 
 const displayMaxVoltage = computed(() => {
   if (!summary.value) return '0.000'
-  // 新格式
-  if (summary.value.max_voltage !== undefined) {
-    if (typeof summary.value.max_voltage === 'object') {
-      return summary.value.max_voltage.value.toFixed(3)
-    }
-    return summary.value.max_voltage.toFixed(3)
-  }
   return (summary.value.max_voltage ?? 1.0).toFixed(3)
 })
 
 const displayMaxVoltageBus = computed(() => {
   if (!summary.value) return '-'
-  if (typeof summary.value.max_voltage === 'object') {
-    return summary.value.max_voltage.bus
-  }
   return summary.value.max_voltage_bus ?? '-'
 })
 
 const displayMinVoltage = computed(() => {
   if (!summary.value) return '0.000'
-  if (summary.value.min_voltage !== undefined) {
-    if (typeof summary.value.min_voltage === 'object') {
-      return summary.value.min_voltage.value.toFixed(3)
-    }
-    return summary.value.min_voltage.toFixed(3)
-  }
   return (summary.value.min_voltage ?? 1.0).toFixed(3)
 })
 
 const displayMinVoltageBus = computed(() => {
   if (!summary.value) return '-'
-  if (typeof summary.value.min_voltage === 'object') {
-    return summary.value.min_voltage.bus
-  }
   return summary.value.min_voltage_bus ?? '-'
 })
 
@@ -130,55 +120,86 @@ const convergenceClass = computed(() => {
 .system-summary {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 12px 16px;
   display: flex;
   flex-direction: column;
+  transition: border-color 0.3s;
+}
+
+.system-summary:hover {
+  border-color: var(--border-glow);
 }
 
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 12px;
+  gap: 8px;
   margin-top: 8px;
 }
 
 .summary-item {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  padding: 8px;
+  gap: 8px;
+  padding: 8px 10px;
   background: var(--bg-tertiary);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   min-width: 80px;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.summary-item:hover {
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+}
+
+.item-icon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.item-data {
+  display: flex;
+  flex-direction: column;
 }
 
 .item-label {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .item-value {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
+  line-height: 1.2;
 }
 
 .item-unit {
   font-size: 10px;
   color: var(--text-secondary);
-  margin-top: 2px;
+  font-weight: 400;
 }
 
-.status-item {
+.item-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.summary-status {
   justify-content: center;
 }
 
 .status-indicator {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-size: 12px;
 }
 
@@ -190,10 +211,17 @@ const convergenceClass = computed(() => {
 
 .status-dot.success {
   background-color: var(--color-success);
+  box-shadow: 0 0 6px rgba(82, 196, 26, 0.4);
 }
 
 .status-dot.danger {
   background-color: var(--color-danger);
+  box-shadow: 0 0 6px rgba(255, 77, 79, 0.4);
+}
+
+.status-text {
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 .value-normal {

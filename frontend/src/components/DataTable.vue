@@ -15,7 +15,7 @@
               <span
                 :class="['value-display', getValueClass(record.vm, record.vmin, record.vmax)]"
               >
-                {{ record.vm.toFixed(3) }}
+                {{ record.vm?.toFixed(3) ?? '-' }}
               </span>
             </template>
             <template v-else-if="column.key === 'action'">
@@ -37,7 +37,7 @@
         >
           <template #bodyCell="{ column, record, index }">
             <template v-if="column.key === 'status'">
-              <a-tag :color="record.gen_status === 1 ? 'success' : 'default'">
+              <a-tag :color="record.gen_status === 1 ? 'success' : 'default'" size="small">
                 {{ record.gen_status === 1 ? '投入' : '退出' }}
               </a-tag>
             </template>
@@ -60,7 +60,7 @@
         >
           <template #bodyCell="{ column, record, index }">
             <template v-if="column.key === 'status'">
-              <a-tag :color="record.br_status === 1 ? 'success' : 'default'">
+              <a-tag :color="record.br_status === 1 ? 'success' : 'default'" size="small">
                 {{ record.br_status === 1 ? '投入' : '退出' }}
               </a-tag>
             </template>
@@ -84,14 +84,24 @@
     <!-- 编辑弹窗 -->
     <a-modal
       v-model:open="editModalVisible"
-      title="编辑参数"
-      @ok="handleEditOk"
+      :title="undefined"
+      :footer="null"
+      :width="420"
+      :centered="true"
+      class="edit-modal"
       @cancel="editModalVisible = false"
     >
-      <a-form :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
-        <a-form-item label="类型">
-          <a-input :value="editForm.type === 'bus' ? '母线' : editForm.type === 'gen' ? '发电机' : '线路'" disabled />
-        </a-form-item>
+      <div class="edit-modal-header">
+        <div class="edit-modal-icon" :class="`edit-modal-icon-${editForm.type}`">
+          {{ editForm.type === 'bus' ? '母线' : editForm.type === 'gen' ? '发电机' : '线路' }}
+        </div>
+        <div class="edit-modal-subtitle">
+          {{ editForm.type === 'bus' ? `Bus ${editForm.id}` :
+             editForm.type === 'gen' ? `Gen Bus ${editForm.id}` :
+             `Branch ${editForm.branchLabel}` }}
+        </div>
+      </div>
+      <a-form :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }" class="edit-form">
         <a-form-item label="参数">
           <a-select v-model:value="editForm.field" style="width: 100%">
             <a-select-option v-for="opt in fieldOptions" :key="opt.value" :value="opt.value">
@@ -100,16 +110,28 @@
           </a-select>
         </a-form-item>
         <a-form-item label="当前值">
-          <a-input-number v-model:value="editForm.value" style="width: 100%" />
+          <a-input-number
+            v-model:value="editForm.value"
+            style="width: 100%"
+            :step="editForm.field === 'br_status' || editForm.field === 'gen_status' ? 1 : 0.1"
+            :min="editForm.field === 'br_status' || editForm.field === 'gen_status' ? 0 : undefined"
+            :max="editForm.field === 'br_status' || editForm.field === 'gen_status' ? 1 : undefined"
+          />
         </a-form-item>
       </a-form>
+      <div class="edit-modal-footer">
+        <a-button @click="editModalVisible = false">取消</a-button>
+        <a-button type="primary" :loading="simulationStore.isRunning" @click="handleEditOk">
+          应用并仿真
+        </a-button>
+      </div>
     </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h } from 'vue'
-import { Modal, Form, InputNumber, message } from 'ant-design-vue'
+import { ref, computed } from 'vue'
+import { message } from 'ant-design-vue'
 import { useSimulationStore } from '../stores/simulation'
 import type { BusData, GenData, BranchData } from '../api/types'
 
@@ -123,16 +145,19 @@ const busColumns = [
     return types[record.bus_type - 1] || '-'
   }},
   { title: '电压(p.u.)', dataIndex: 'vm', key: 'vm', width: 80 },
-  { title: '相角(°)', dataIndex: 'va', key: 'va', width: 70 },
-  { title: '负荷(MW)', dataIndex: 'pd', key: 'pd', width: 80 },
+  { title: '相角(deg)', dataIndex: 'va', key: 'va', width: 70, customRender: ({ record }: { record: BusData }) => {
+    return record.va?.toFixed(2) ?? '-'
+  }},
+  { title: '有功负荷(MW)', dataIndex: 'pd', key: 'pd', width: 90 },
+  { title: '无功负荷(MVar)', dataIndex: 'qd', key: 'qd', width: 90 },
   { title: '操作', key: 'action', width: 60 }
 ]
 
 const genColumns = [
   { title: '母线', dataIndex: 'gen_bus', key: 'gen_bus', width: 60 },
-  { title: '有功(MW)', dataIndex: 'pg', key: 'pg', width: 80 },
-  { title: '无功(MVar)', dataIndex: 'qg', key: 'qg', width: 80 },
-  { title: '电压设定', dataIndex: 'vg', key: 'vg', width: 80 },
+  { title: '有功(MW)', dataIndex: 'pg', key: 'pg', width: 80, customRender: ({ record }: { record: GenData }) => record.pg?.toFixed(2) ?? '-' },
+  { title: '无功(MVar)', dataIndex: 'qg', key: 'qg', width: 80, customRender: ({ record }: { record: GenData }) => record.qg?.toFixed(2) ?? '-' },
+  { title: '电压设定', dataIndex: 'vg', key: 'vg', width: 80, customRender: ({ record }: { record: GenData }) => record.vg?.toFixed(3) ?? '-' },
   { title: '上限(MW)', dataIndex: 'pmax', key: 'pmax', width: 70 },
   { title: '状态', key: 'status', width: 60 },
   { title: '操作', key: 'action', width: 60 }
@@ -140,8 +165,8 @@ const genColumns = [
 
 const branchColumns = [
   { title: '线路', key: 'branch', width: 80, customRender: ({ record }: { record: BranchData }) => `${record.f_bus}-${record.t_bus}` },
-  { title: '有功(MW)', dataIndex: 'pf', key: 'pf', width: 70 },
-  { title: '无功(MVar)', dataIndex: 'qf', key: 'qf', width: 70 },
+  { title: '有功(MW)', dataIndex: 'pf', key: 'pf', width: 70, customRender: ({ record }: { record: BranchData }) => record.pf?.toFixed(2) ?? '-' },
+  { title: '无功(MVar)', dataIndex: 'qf', key: 'qf', width: 70, customRender: ({ record }: { record: BranchData }) => record.qf?.toFixed(2) ?? '-' },
   { title: '容量(MVA)', dataIndex: 'rate_a', key: 'rate_a', width: 80 },
   { title: '负载率', key: 'loading', width: 70 },
   { title: '状态', key: 'status', width: 60 },
@@ -159,12 +184,14 @@ const editForm = ref<{
   field: string
   value: number
   index: number
+  branchLabel: string
 }>({
   type: 'bus',
   id: 0,
   field: '',
   value: 0,
-  index: 0
+  index: 0,
+  branchLabel: ''
 })
 
 const fieldOptions = computed(() => {
@@ -219,7 +246,8 @@ function editBus(record: BusData) {
     id: record.bus_i,
     field: 'pd',
     value: record.pd,
-    index: idx
+    index: idx,
+    branchLabel: ''
   }
   editModalVisible.value = true
 }
@@ -230,7 +258,8 @@ function editGen(record: GenData, index: number) {
     id: record.gen_bus,
     field: 'pg',
     value: record.pg,
-    index
+    index,
+    branchLabel: ''
   }
   editModalVisible.value = true
 }
@@ -241,7 +270,8 @@ function editBranch(record: BranchData, index: number) {
     id: record.f_bus,
     field: 'br_status',
     value: record.br_status,
-    index
+    index,
+    branchLabel: `${record.f_bus}-${record.t_bus}`
   }
   editModalVisible.value = true
 }
@@ -249,26 +279,25 @@ function editBranch(record: BranchData, index: number) {
 async function handleEditOk() {
   const { type, field, value, index } = editForm.value
 
-  // Build modifications in the format the backend expects
   const modifications: Record<string, Array<{ index: number; field: string; value: number }>> = {}
 
   if (type === 'bus') {
-    // Update local caseData first
-    simulationStore.updateBusParam(editForm.value.id, field as keyof BusData, value)
     modifications['bus'] = [{ index, field, value }]
   } else if (type === 'gen') {
-    simulationStore.updateGenParam(editForm.value.id, field as keyof GenData, value)
     modifications['gen'] = [{ index, field, value }]
   } else if (type === 'branch') {
-    simulationStore.updateBranchParam(index, field as keyof BranchData, value)
     modifications['branch'] = [{ index, field, value }]
   }
 
   editModalVisible.value = false
-  message.success('参数已更新，正在重新仿真...')
+  message.loading({ content: '参数已更新，正在重新仿真...', key: 'edit-sim', duration: 0 })
 
-  // Run simulation with modifications so backend uses the edited data
-  await simulationStore.runSimulation(simulationStore.simMode, modifications)
+  try {
+    await simulationStore.runSimulation(simulationStore.simMode, modifications)
+    message.success({ content: '仿真完成', key: 'edit-sim' })
+  } catch (e: any) {
+    message.error({ content: '仿真失败: ' + (e.message || '未知错误'), key: 'edit-sim' })
+  }
 }
 </script>
 
@@ -304,5 +333,54 @@ async function handleEditOk() {
 
 .value-danger {
   color: var(--color-danger);
+}
+
+/* Edit modal styles */
+.edit-modal-header {
+  text-align: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.edit-modal-icon {
+  display: inline-block;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.edit-modal-icon-bus {
+  background: rgba(24, 144, 255, 0.15);
+  color: var(--color-primary);
+}
+
+.edit-modal-icon-gen {
+  background: rgba(82, 196, 26, 0.15);
+  color: var(--color-success);
+}
+
+.edit-modal-icon-branch {
+  background: rgba(250, 173, 20, 0.15);
+  color: var(--color-warning);
+}
+
+.edit-modal-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.edit-form {
+  margin-bottom: 16px;
+}
+
+.edit-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
 }
 </style>

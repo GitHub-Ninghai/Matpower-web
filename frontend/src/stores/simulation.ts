@@ -22,6 +22,9 @@ export const useSimulationStore = defineStore('simulation', () => {
   const simulationHistory = ref<SimulationResult[]>([])
   const alarms = ref<AlarmInfo[]>([])
 
+  // Accumulated modifications that persist across simulations
+  const accumulatedModifications = ref<Record<string, Array<{ index: number; field: string; value: number }>>>({})
+
   // WebSocket
   const wsConnected = ref(false)
   let ws: ReturnType<typeof getSimulationWebSocket> | null = null
@@ -31,30 +34,63 @@ export const useSimulationStore = defineStore('simulation', () => {
   const systemSummary = computed((): SystemSummary | null => {
     if (!simResult.value?.system_summary) return null
     const summary = simResult.value.system_summary
-    // Convert backend format to frontend format if needed
-    if ('total_generation' in summary) {
-      return summary as SystemSummary
-    }
-    // Legacy format conversion
-    return {
-      total_generation: summary.total_gen || 0,
-      total_load: summary.total_load || 0,
-      total_losses: summary.total_loss || 0,
-      total_reactive_gen: 0,
-      total_reactive_load: 0,
-      min_voltage: summary.min_voltage?.value || 0,
-      max_voltage: summary.max_voltage?.value || 0,
-      min_voltage_bus: summary.min_voltage?.bus || 0,
-      max_voltage_bus: summary.max_voltage?.bus || 0
-    }
+    // The backend already returns the correct SystemSummary format
+    return summary as SystemSummary
   })
   const hasAlarms = computed(() => alarms.value.length > 0)
   const criticalAlarms = computed(() => alarms.value.filter(a => a.level === 'critical'))
   const warningAlarms = computed(() => alarms.value.filter(a => a.level === 'warning'))
 
+  // Merge new modifications into the accumulated set
+  function addModifications(modifications: Record<string, Array<{ index: number; field: string; value: number }>>) {
+    for (const [type, modList] of Object.entries(modifications)) {
+      if (!accumulatedModifications.value[type]) {
+        accumulatedModifications.value[type] = []
+      }
+      for (const mod of modList) {
+        // Replace any existing mod for same index+field, or append
+        const existingIdx = accumulatedModifications.value[type].findIndex(
+          m => m.index === mod.index && m.field === mod.field
+        )
+        if (existingIdx >= 0) {
+          accumulatedModifications.value[type][existingIdx].value = mod.value
+        } else {
+          accumulatedModifications.value[type].push({ ...mod })
+        }
+      }
+    }
+  }
+
+  // Get the merged modifications = accumulated + any extra
+  function getMergedModifications(extra?: any): any {
+    const merged: Record<string, Array<{ index: number; field: string; value: number }>> = {}
+    // Copy accumulated
+    for (const [type, modList] of Object.entries(accumulatedModifications.value)) {
+      merged[type] = modList.map(m => ({ ...m }))
+    }
+    // Merge extra
+    if (extra) {
+      for (const [type, modList] of Object.entries(extra)) {
+        if (!merged[type]) merged[type] = []
+        for (const mod of modList as Array<{ index: number; field: string; value: number }>) {
+          const existingIdx = merged[type].findIndex(
+            (m: { index: number; field: string }) => m.index === mod.index && m.field === mod.field
+          )
+          if (existingIdx >= 0) {
+            merged[type][existingIdx].value = mod.value
+          } else {
+            merged[type].push({ ...mod })
+          }
+        }
+      }
+    }
+    return Object.keys(merged).length > 0 ? merged : undefined
+  }
+
   // 方法
   async function loadCase(caseName: string) {
     currentCase.value = caseName
+    accumulatedModifications.value = {} // Reset modifications on case change
     try {
       const data = await apiSimulation.getCaseData(caseName)
       caseData.value = {
@@ -78,20 +114,31 @@ export const useSimulationStore = defineStore('simulation', () => {
     simulationProgress.value = 0
     simulationMessage.value = 'Starting simulation...'
 
+    // Merge new modifications into accumulated set
+    if (modifications) {
+      addModifications(modifications)
+    }
+
+    // Always use accumulated modifications so all previous changes are preserved
+    const finalModifications = getMergedModifications()
+
     try {
       let result: SimulationResult
 
       if (mode === 'OPF') {
-        result = await apiSimulation.runOPF(currentCase.value, modifications)
+        result = await apiSimulation.runOPF(currentCase.value, finalModifications)
       } else if (mode === 'DCPF') {
-        result = await apiSimulation.runDCPowerFlow(currentCase.value, modifications)
+        result = await apiSimulation.runDCPowerFlow(currentCase.value, finalModifications)
       } else {
-        result = await apiSimulation.runPowerFlow(currentCase.value, 'NR', modifications)
+        result = await apiSimulation.runPowerFlow(currentCase.value, 'NR', finalModifications)
       }
 
       simResult.value = result
       simulationProgress.value = 100
       simulationMessage.value = result.message || 'Simulation completed'
+
+      // Sync local caseData with simulation results
+      syncCaseDataFromResult(result)
 
       // Always generate alarms from whatever data is available
       alarms.value = generateAlarms(result)
@@ -199,14 +246,56 @@ export const useSimulationStore = defineStore('simulation', () => {
     simulationProgress.value = 0
     simulationMessage.value = 'Applying disturbance...'
 
-    try {
-      const result = await apiSimulation.applyDisturbance(
-        currentCase.value,
-        {
-          disturbance_type: disturbance.type as any,
-          target_id: disturbance.target_id,
-          new_value: disturbance.new_value
+    // Build local modifications from the disturbance to accumulate
+    if (disturbance.type === 'line_outage') {
+      const branchIdx = typeof disturbance.target_id === 'number' ? disturbance.target_id : disturbance.target_id?.index
+      if (branchIdx !== undefined) {
+        addModifications({ branch: [{ index: branchIdx, field: 'br_status', value: 0 }] })
+        updateBranchParam(branchIdx, 'br_status', 0)
+      }
+    } else if (disturbance.type === 'gen_outage') {
+      const genBus = typeof disturbance.target_id === 'number' ? disturbance.target_id : disturbance.target_id?.gen_bus
+      if (genBus !== undefined) {
+        const genIdx = caseData.value.generators.findIndex(g => g.gen_bus === genBus)
+        if (genIdx >= 0) {
+          addModifications({
+            gen: [
+              { index: genIdx, field: 'gen_status', value: 0 },
+              { index: genIdx, field: 'pg', value: 0 },
+              { index: genIdx, field: 'qg', value: 0 }
+            ]
+          })
         }
+      }
+    } else if (disturbance.type === 'load_change') {
+      const busId = typeof disturbance.target_id === 'number' ? disturbance.target_id : disturbance.target_id?.bus_i
+      if (busId !== undefined) {
+        const busIdx = caseData.value.buses.findIndex(b => b.bus_i === busId)
+        if (busIdx >= 0) {
+          const currentPd = caseData.value.buses[busIdx].pd
+          const newPd = currentPd * (1 + (disturbance.new_value || 0) / 100)
+          addModifications({ bus: [{ index: busIdx, field: 'pd', value: newPd }] })
+          updateBusParam(busId, 'pd', newPd)
+        }
+      }
+    } else if (disturbance.type === 'voltage_change') {
+      const busId = typeof disturbance.target_id === 'number' ? disturbance.target_id : disturbance.target_id?.bus_i
+      if (busId !== undefined) {
+        const genIdx = caseData.value.generators.findIndex(g => g.gen_bus === busId)
+        if (genIdx >= 0) {
+          addModifications({ gen: [{ index: genIdx, field: 'vg', value: disturbance.new_value || 1.0 }] })
+        }
+      }
+    }
+
+    // Use accumulated modifications for the simulation
+    const finalModifications = getMergedModifications()
+
+    try {
+      const result = await apiSimulation.runPowerFlow(
+        currentCase.value,
+        'NR',
+        finalModifications
       )
 
       if (!result || typeof result !== 'object') {
@@ -217,6 +306,10 @@ export const useSimulationStore = defineStore('simulation', () => {
 
       simResult.value = result
       simulationProgress.value = 100
+      simulationMessage.value = result.message || 'Disturbance applied'
+
+      // Sync local caseData with simulation results
+      syncCaseDataFromResult(result)
 
       // Always generate alarms from whatever data is available
       alarms.value = generateAlarms(result)
@@ -284,6 +377,40 @@ export const useSimulationStore = defineStore('simulation', () => {
     }
   }
 
+  // Sync local caseData with simulation results so tables show latest data
+  function syncCaseDataFromResult(result: SimulationResult) {
+    if (result.bus_results) {
+      for (const busResult of result.bus_results) {
+        const bus = caseData.value.buses.find(b => b.bus_i === busResult.bus_i)
+        if (bus) {
+          bus.vm = busResult.vm
+          bus.va = busResult.va
+        }
+      }
+    }
+    if (result.gen_results) {
+      for (const genResult of result.gen_results) {
+        const gen = caseData.value.generators.find(g => g.gen_bus === genResult.gen_bus)
+        if (gen) {
+          gen.pg = genResult.pg
+          gen.qg = genResult.qg
+          gen.gen_status = genResult.gen_status
+        }
+      }
+    }
+    if (result.branch_results) {
+      for (let i = 0; i < result.branch_results.length && i < caseData.value.branches.length; i++) {
+        const brResult = result.branch_results[i]
+        const br = caseData.value.branches[i]
+        br.br_status = brResult.br_status
+        if (brResult.pf !== undefined) (br as any).pf = brResult.pf
+        if (brResult.qf !== undefined) (br as any).qf = brResult.qf
+        if (brResult.pt !== undefined) (br as any).pt = brResult.pt
+        if (brResult.qt !== undefined) (br as any).qt = brResult.qt
+      }
+    }
+  }
+
   function clearAlarms() {
     alarms.value = []
   }
@@ -293,6 +420,7 @@ export const useSimulationStore = defineStore('simulation', () => {
     alarms.value = []
     simulationProgress.value = 0
     simulationMessage.value = ''
+    accumulatedModifications.value = {}
   }
 
   function generateAlarms(result: SimulationResult): AlarmInfo[] {
@@ -437,6 +565,8 @@ export const useSimulationStore = defineStore('simulation', () => {
     updateBranchParam,
     clearAlarms,
     reset,
-    generateAlarms
+    generateAlarms,
+    addModifications,
+    syncCaseDataFromResult
   }
 })

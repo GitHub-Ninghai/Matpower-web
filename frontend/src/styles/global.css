@@ -2,15 +2,24 @@
   --bg-primary: #0d1117;
   --bg-secondary: #161b22;
   --bg-tertiary: #21262d;
+  --bg-hover: #292e36;
   --border-color: #30363d;
-  --text-primary: #c9d1d9;
+  --border-glow: #40a9ff33;
+  --text-primary: #e6edf3;
   --text-secondary: #8b949e;
   --text-muted: #6e7681;
   --color-primary: #1890ff;
+  --color-primary-hover: #40a9ff;
   --color-success: #52c41a;
   --color-warning: #faad14;
   --color-danger: #ff4d4f;
   --color-info: #13c2c2;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
 * {
@@ -24,6 +33,8 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #app {
@@ -38,7 +49,7 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -54,6 +65,7 @@ body {
 .ant-card {
   background-color: var(--bg-secondary) !important;
   border-color: var(--border-color) !important;
+  border-radius: var(--radius-md) !important;
 }
 
 .ant-card-head {
@@ -65,22 +77,26 @@ body {
 }
 
 .ant-table {
-  background-color: var(--bg-secondary) !important;
+  background-color: transparent !important;
   color: var(--text-primary) !important;
 }
 
 .ant-table-thead > tr > th {
   background-color: var(--bg-tertiary) !important;
-  color: var(--text-primary) !important;
+  color: var(--text-secondary) !important;
   border-bottom-color: var(--border-color) !important;
+  font-weight: 600;
+  font-size: 12px;
 }
 
 .ant-table-tbody > tr > td {
-  border-bottom-color: var(--border-color) !important;
+  border-bottom-color: rgba(48, 54, 61, 0.5) !important;
+  font-size: 12px;
+  transition: background-color 0.2s;
 }
 
 .ant-table-tbody > tr:hover > td {
-  background-color: var(--bg-tertiary) !important;
+  background-color: var(--bg-hover) !important;
 }
 
 .ant-table-placeholder {
@@ -88,14 +104,40 @@ body {
   color: var(--text-muted) !important;
 }
 
+.ant-table-bordered .ant-table-container {
+  border-color: var(--border-color) !important;
+}
+
+.ant-table-bordered .ant-table-cell {
+  border-color: rgba(48, 54, 61, 0.5) !important;
+}
+
+.ant-btn {
+  border-radius: var(--radius-sm) !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
 .ant-btn-primary {
   background-color: var(--color-primary) !important;
   border-color: var(--color-primary) !important;
+  box-shadow: 0 2px 6px rgba(24, 144, 255, 0.25);
 }
 
 .ant-btn-primary:hover {
-  background-color: #40a9ff !important;
-  border-color: #40a9ff !important;
+  background-color: var(--color-primary-hover) !important;
+  border-color: var(--color-primary-hover) !important;
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.35);
+  transform: translateY(-1px);
+}
+
+.ant-btn-default {
+  border-color: var(--border-color) !important;
+  color: var(--text-secondary) !important;
+}
+
+.ant-btn-default:hover {
+  border-color: var(--color-primary) !important;
+  color: var(--color-primary) !important;
 }
 
 .ant-input,
@@ -103,6 +145,19 @@ body {
   background-color: var(--bg-tertiary) !important;
   border-color: var(--border-color) !important;
   color: var(--text-primary) !important;
+  border-radius: var(--radius-sm) !important;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.ant-input:focus,
+.ant-input-focused,
+.ant-select-focused .ant-select-selector {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.15) !important;
+}
+
+.ant-input-number {
+  border-radius: var(--radius-sm) !important;
 }
 
 .ant-input-number-input {
@@ -112,6 +167,11 @@ body {
 
 .ant-tabs-tab {
   color: var(--text-secondary) !important;
+  transition: color 0.2s !important;
+}
+
+.ant-tabs-tab:hover {
+  color: var(--text-primary) !important;
 }
 
 .ant-tabs-tab-active {
@@ -124,10 +184,14 @@ body {
 
 .ant-modal-content {
   background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-lg) !important;
 }
 
 .ant-modal-header {
   border-bottom-color: var(--border-color) !important;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
 }
 
 .ant-modal-title {
@@ -146,21 +210,46 @@ body {
   color: var(--text-secondary) !important;
 }
 
+.ant-tag {
+  border-radius: 4px !important;
+  transition: all 0.2s;
+}
+
+.ant-select-dropdown {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+.ant-select-item {
+  color: var(--text-primary) !important;
+}
+
+.ant-select-item-option-active {
+  background-color: var(--bg-hover) !important;
+}
+
+.ant-select-item-option-selected {
+  background-color: rgba(24, 144, 255, 0.15) !important;
+}
+
 /* 卡片标题样式 */
 .card-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 8px;
+  letter-spacing: 0.3px;
 }
 
 .card-title::before {
   content: '';
   width: 3px;
   height: 14px;
-  background: var(--color-primary);
+  background: linear-gradient(180deg, var(--color-primary), var(--color-info));
   border-radius: 2px;
 }
 
@@ -176,19 +265,22 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  animation: pulse 2s infinite;
+  animation: pulse 2s ease-in-out infinite;
 }
 
 .status-dot.success {
   background-color: var(--color-success);
+  box-shadow: 0 0 6px rgba(82, 196, 26, 0.4);
 }
 
 .status-dot.warning {
   background-color: var(--color-warning);
+  box-shadow: 0 0 6px rgba(250, 173, 20, 0.4);
 }
 
 .status-dot.danger {
   background-color: var(--color-danger);
+  box-shadow: 0 0 6px rgba(255, 77, 79, 0.4);
 }
 
 @keyframes pulse {
@@ -202,7 +294,8 @@ body {
 
 /* 数值显示 */
 .value-display {
-  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Cascadia Code', monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 .value-normal {
@@ -237,4 +330,19 @@ body {
   height: 100%;
   gap: 16px;
   color: var(--text-muted);
+}
+
+/* Smooth transitions for all interactive elements */
+a, button, .ant-tag, .ant-btn {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Card hover effect */
+.grid-item, .chart-item, .log-panel, .system-summary, .disturbance-panel {
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.grid-item:hover, .chart-item:hover {
+  border-color: var(--border-glow);
+  box-shadow: var(--shadow-sm);
 }

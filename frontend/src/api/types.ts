@@ -92,13 +92,11 @@ export interface SystemSummary {
   max_voltage: number       // 最大电压 (p.u.)
   min_voltage_bus: number
   max_voltage_bus: number
-  // 兼容旧格式
-  total_gen?: number
-  total_loss?: number
-  max_voltage?: { bus: number; value: number }
-  min_voltage?: { bus: number; value: number }
   total_cost?: number
   convergence?: string
+  // Legacy compat fields
+  total_gen?: number
+  total_loss?: number
 }
 
 // 告警信息

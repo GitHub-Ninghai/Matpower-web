@@ -19,27 +19,29 @@
         <CheckCircleOutlined style="font-size: 32px; color: var(--color-success)" />
         <div>暂无告警</div>
       </div>
-      <div
-        v-for="alarm in alarms"
-        :key="alarm.id"
-        :class="['alarm-item', `alarm-${alarm.level}`]"
-        @click="handleAlarmClick(alarm)"
-      >
-        <div class="alarm-icon">
-          <ExclamationCircleOutlined v-if="alarm.level === 'critical'" />
-          <WarningOutlined v-else />
-        </div>
-        <div class="alarm-content">
-          <div class="alarm-message">{{ alarm.message }}</div>
-          <div class="alarm-detail">
-            {{ getAlarmDetail(alarm) }}
+      <transition-group name="alarm-fade" tag="div">
+        <div
+          v-for="alarm in alarms"
+          :key="alarm.id"
+          :class="['alarm-item', `alarm-${alarm.level}`]"
+          @click="handleAlarmClick(alarm)"
+        >
+          <div class="alarm-icon">
+            <ExclamationCircleOutlined v-if="alarm.level === 'critical'" />
+            <WarningOutlined v-else />
+          </div>
+          <div class="alarm-content">
+            <div class="alarm-message">{{ alarm.message }}</div>
+            <div class="alarm-detail">
+              {{ getAlarmDetail(alarm) }}
+            </div>
+          </div>
+          <div class="alarm-value">
+            <span class="value-current">{{ typeof alarm.value === 'number' ? alarm.value.toFixed(2) : '-' }}</span>
+            <span class="value-limit">/ {{ typeof alarm.limit === 'number' ? alarm.limit : '-' }}</span>
           </div>
         </div>
-        <div class="alarm-value">
-          <span class="value-current">{{ typeof alarm.value === 'number' ? alarm.value.toFixed(2) : '-' }}</span>
-          <span class="value-limit">/ {{ typeof alarm.limit === 'number' ? alarm.limit : '-' }}</span>
-        </div>
-      </div>
+      </transition-group>
     </div>
   </div>
 </template>
@@ -113,14 +115,15 @@ function clearAll() {
   padding: 10px 12px;
   margin-bottom: 8px;
   background: var(--bg-tertiary);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border-left: 3px solid transparent;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .alarm-item:hover {
-  background: var(--border-color);
+  background: var(--bg-hover);
+  transform: translateX(2px);
 }
 
 .alarm-item.alarm-critical {
@@ -133,6 +136,7 @@ function clearAll() {
 
 .alarm-icon {
   font-size: 18px;
+  flex-shrink: 0;
 }
 
 .alarm-item.alarm-critical .alarm-icon {
@@ -145,12 +149,16 @@ function clearAll() {
 
 .alarm-content {
   flex: 1;
+  min-width: 0;
 }
 
 .alarm-message {
   font-size: 13px;
   color: var(--text-primary);
   margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .alarm-detail {
@@ -160,6 +168,7 @@ function clearAll() {
 
 .alarm-value {
   text-align: right;
+  flex-shrink: 0;
 }
 
 .value-current {
@@ -180,5 +189,21 @@ function clearAll() {
 
 .alarm-item.alarm-warning .value-current {
   color: var(--color-warning);
+}
+
+/* Alarm animation */
+.alarm-fade-enter-active {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.alarm-fade-leave-active {
+  transition: all 0.2s ease-in;
+}
+.alarm-fade-enter-from {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+.alarm-fade-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
 }
 </style>

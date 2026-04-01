@@ -2,13 +2,13 @@
   <div class="simulation-controls">
     <a-select
       v-model:value="simMode"
-      style="width: 100px"
+      style="width: 110px"
       size="small"
       :options="modeOptions"
     />
     <a-select
       v-model:value="currentCase"
-      style="width: 150px"
+      style="width: 180px"
       size="small"
       :options="caseOptions"
       @change="handleCaseChange"
@@ -33,17 +33,12 @@
       </template>
       重置
     </a-button>
-    <a-tag v-if="simulationStore.simResult" color="success">
-      {{ simulationStore.simResult.iterations }} 次迭代
-    </a-tag>
-    <a-tag v-if="simulationStore.simResult">
-      {{ (simulationStore.simResult.et * 1000).toFixed(0) }}ms
-    </a-tag>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { message } from 'ant-design-vue'
 import { PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons-vue'
 import { useSimulationStore } from '../stores/simulation'
 import { useCasesStore } from '../stores/cases'
@@ -51,13 +46,13 @@ import { useCasesStore } from '../stores/cases'
 const simulationStore = useSimulationStore()
 const casesStore = useCasesStore()
 
-const simMode = ref<'ac' | 'dc' | 'opf'>('ac')
+const simMode = ref<'PF' | 'DCPF' | 'OPF'>('PF')
 const currentCase = ref('case14')
 
 const modeOptions = [
-  { label: 'AC 潮流', value: 'ac' },
-  { label: 'DC 潮流', value: 'dc' },
-  { label: 'OPF', value: 'opf' }
+  { label: 'AC 潮流', value: 'PF' },
+  { label: 'DC 潮流', value: 'DCPF' },
+  { label: 'OPF', value: 'OPF' }
 ]
 
 const caseOptions = computed(() =>
@@ -74,19 +69,34 @@ watch(simMode, (newMode) => {
 })
 
 async function runSimulation() {
-  await simulationStore.runSimulation(simMode.value)
+  try {
+    await simulationStore.runSimulation(simMode.value)
+    message.success('仿真完成')
+  } catch (e: any) {
+    message.error('仿真失败: ' + (e.message || '未知错误'))
+  }
 }
 
 async function handleCaseChange(caseName: string) {
-  await simulationStore.loadCase(caseName)
-  casesStore.setCurrentCase(caseName)
-  await simulationStore.runSimulation(simMode.value)
+  try {
+    await simulationStore.loadCase(caseName)
+    casesStore.setCurrentCase(caseName)
+    await simulationStore.runSimulation(simMode.value)
+    message.success('切换用例并仿真完成')
+  } catch (e: any) {
+    message.error('切换用例失败: ' + (e.message || '未知错误'))
+  }
 }
 
 async function handleReset() {
-  simulationStore.reset()
-  await simulationStore.loadCase(currentCase.value)
-  await simulationStore.runSimulation(simMode.value)
+  try {
+    simulationStore.reset()
+    await simulationStore.loadCase(currentCase.value)
+    await simulationStore.runSimulation(simMode.value)
+    message.success('已重置')
+  } catch (e: any) {
+    message.error('重置失败: ' + (e.message || '未知错误'))
+  }
 }
 </script>
 

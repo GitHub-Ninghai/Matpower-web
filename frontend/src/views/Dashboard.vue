@@ -3,10 +3,19 @@
     <!-- 顶部标题栏 -->
     <header class="dashboard-header">
       <div class="header-left">
+        <div class="logo-icon">&#9889;</div>
         <h1 class="title">MATPOWER 电力系统仿真平台</h1>
         <span v-if="simulationStore.currentCase" class="case-badge">
           {{ casesStore.getCaseByName(simulationStore.currentCase)?.display_name }}
         </span>
+        <div v-if="simulationStore.simResult" class="header-stats">
+          <span class="stat-tag stat-iter">
+            {{ simulationStore.simResult.iterations }} 次迭代
+          </span>
+          <span class="stat-tag stat-time">
+            {{ (simulationStore.simResult.et * 1000).toFixed(0) }}ms
+          </span>
+        </div>
       </div>
       <div class="header-right">
         <SimulationControls />
@@ -63,10 +72,13 @@
           <div class="card-title">仿真日志</div>
           <div class="log-content">
             <div v-if="logs.length === 0" class="empty-state">暂无日志</div>
-            <div v-for="(log, index) in logs.slice(-5)" :key="index" class="log-item">
-              <span class="log-time">{{ log.time }}</span>
-              <span :class="['log-message', `log-${log.level}`]">{{ log.message }}</span>
-            </div>
+            <transition-group name="log-fade" tag="div">
+              <div v-for="log in logs.slice(-5)" :key="log.id" class="log-item">
+                <span class="log-time">{{ log.time }}</span>
+                <span :class="['log-dot', `log-dot-${log.level}`]"></span>
+                <span :class="['log-message', `log-${log.level}`]">{{ log.message }}</span>
+              </div>
+            </transition-group>
           </div>
         </div>
       </div>
@@ -96,16 +108,19 @@ const activeTab = ref('table')
 let ws: ReturnType<typeof getSimulationWebSocket> | null = null
 
 interface Log {
+  id: number
   time: string
   level: 'info' | 'success' | 'warning' | 'error'
   message: string
 }
 
+let logIdCounter = 0
 const logs = ref<Log[]>([])
 
 function addLog(level: 'info' | 'success' | 'warning' | 'error', message: string) {
   const now = new Date()
   logs.value.push({
+    id: ++logIdCounter,
     time: `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`,
     level,
     message
@@ -189,36 +204,66 @@ onUnmounted(() => {
 }
 
 .dashboard-header {
-  height: 60px;
-  min-height: 60px;
+  height: 56px;
+  min-height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  z-index: 100;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
+}
+
+.logo-icon {
+  font-size: 22px;
+  line-height: 1;
 }
 
 .title {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
+  letter-spacing: 0.5px;
 }
 
 .case-badge {
   padding: 4px 12px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: 20px;
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.header-stats {
+  display: flex;
+  gap: 8px;
+}
+
+.stat-tag {
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.stat-iter {
+  background: rgba(24, 144, 255, 0.12);
+  color: var(--color-primary);
+}
+
+.stat-time {
+  background: rgba(82, 196, 26, 0.12);
+  color: var(--color-success);
 }
 
 .header-right {
@@ -248,10 +293,15 @@ onUnmounted(() => {
 .grid-item {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.grid-item:hover {
+  border-color: var(--border-glow);
 }
 
 .topology-panel {
@@ -268,9 +318,14 @@ onUnmounted(() => {
   flex: 1;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   min-height: 0;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.chart-item:hover {
+  border-color: var(--border-glow);
 }
 
 .data-panel {
@@ -298,7 +353,7 @@ onUnmounted(() => {
 }
 
 .data-panel :deep(.ant-tabs-tabpane) {
-  height: 100;
+  height: 100%;
 }
 
 .bottom-panel {
@@ -311,11 +366,16 @@ onUnmounted(() => {
 .log-panel {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  transition: border-color 0.3s;
+}
+
+.log-panel:hover {
+  border-color: var(--border-glow);
 }
 
 .log-content {
@@ -326,23 +386,41 @@ onUnmounted(() => {
 
 .log-item {
   display: flex;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
   padding: 4px 0;
   font-size: 12px;
-  border-bottom: 1px solid var(--bg-tertiary);
+  border-bottom: 1px solid rgba(48, 54, 61, 0.3);
 }
-
 .log-item:last-child {
   border-bottom: none;
 }
 
 .log-time {
   color: var(--text-muted);
-  min-width: 60px;
+  min-width: 55px;
+  font-family: 'SF Mono', monospace;
+  font-size: 11px;
 }
+
+.log-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.log-dot-info { background: var(--color-info); }
+.log-dot-success { background: var(--color-success); }
+.log-dot-warning { background: var(--color-warning); }
+.log-dot-error { background: var(--color-danger); }
 
 .log-message {
   color: var(--text-secondary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .log-info {
@@ -359,6 +437,21 @@ onUnmounted(() => {
 
 .log-error {
   color: var(--color-danger);
+}
+
+/* Log entry animation */
+.log-fade-enter-active {
+  transition: all 0.3s ease-out;
+}
+.log-fade-leave-active {
+  transition: all 0.2s ease-in;
+}
+.log-fade-enter-from {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+.log-fade-leave-to {
+  opacity: 0;
 }
 
 @media (max-width: 1600px) {
